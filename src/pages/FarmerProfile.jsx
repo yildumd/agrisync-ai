@@ -4,8 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import { getFarmerById, getFarmerActivities } from '../firebase/firebase.services';
 import Layout from '../components/Layout/Layout';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
+import AddProduce from '../components/Farmer/AddProduce';
 import { getCarbonRating } from '../utils/carbonScore';
-import { ArrowLeft, Leaf, MapPin, Phone, Calendar, TrendingUp, Plus } from 'lucide-react';
+import { ArrowLeft, Leaf, MapPin, Phone, Calendar, TrendingUp, Plus, Package } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const FarmerProfile = () => {
@@ -15,6 +16,7 @@ const FarmerProfile = () => {
   const [farmer, setFarmer] = useState(null);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showProduceModal, setShowProduceModal] = useState(false);
 
   useEffect(() => {
     loadFarmerData();
@@ -25,7 +27,7 @@ const FarmerProfile = () => {
       const farmerResult = await getFarmerById(id);
       if (farmerResult.success) {
         setFarmer(farmerResult.farmer);
-        
+
         const activitiesResult = await getFarmerActivities(id);
         if (activitiesResult.success) {
           setActivities(activitiesResult.activities);
@@ -36,6 +38,11 @@ const FarmerProfile = () => {
       }
       setLoading(false);
     }
+  };
+
+  const handleProduceSuccess = () => {
+    setShowProduceModal(false);
+    toast.success('Your produce has been listed!');
   };
 
   if (loading) return <LoadingSpinner />;
@@ -101,20 +108,30 @@ const FarmerProfile = () => {
           </div>
         </div>
 
-        <Link
-          to={`/farmers/${id}/activity`}
-          className="block bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition text-center"
-        >
-          <Plus className="inline mr-2" size={20} />
-          Log New Activity
-        </Link>
+        {/* Action Buttons Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Link
+            to={`/farmers/${id}/activity`}
+            className="bg-blue-600 text-white p-4 rounded-lg hover:bg-blue-700 transition text-center flex items-center justify-center gap-2"
+          >
+            <Plus size={20} />
+            Log New Activity
+          </Link>
+          <button
+            onClick={() => setShowProduceModal(true)}
+            className="bg-purple-600 text-white p-4 rounded-lg hover:bg-purple-700 transition text-center flex items-center justify-center gap-2"
+          >
+            <Package size={20} />
+            List Produce for Sale
+          </button>
+        </div>
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <TrendingUp size={20} />
             Activity History
           </h2>
-          
+
           {activities.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500 mb-4">No activities logged yet</p>
@@ -168,6 +185,16 @@ const FarmerProfile = () => {
           )}
         </div>
       </div>
+
+      {/* Add Produce Modal */}
+      {showProduceModal && (
+        <AddProduce
+          farmerId={farmer.id}
+          farmerName={farmer.name}
+          onClose={() => setShowProduceModal(false)}
+          onSuccess={handleProduceSuccess}
+        />
+      )}
     </Layout>
   );
 };
