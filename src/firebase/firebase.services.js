@@ -25,7 +25,6 @@ export const registerUser = async (email, password, userData) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
-    // Prepare user document based on role
     let userDoc = {
       uid: user.uid,
       email: email,
@@ -181,6 +180,18 @@ export const updateFarmerCarbonScore = async (farmerId, newScore) => {
     return { success: true };
   } catch (error) {
     console.error('Update carbon score error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// NEW: Update farmer details
+export const updateFarmer = async (farmerId, updatedData) => {
+  try {
+    const farmerRef = doc(db, 'farmers', farmerId);
+    await updateDoc(farmerRef, updatedData);
+    return { success: true };
+  } catch (error) {
+    console.error('Update farmer error:', error);
     return { success: false, error: error.message };
   }
 };

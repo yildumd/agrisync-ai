@@ -9,6 +9,7 @@ import CooperativeDashboard from './pages/CooperativeDashboard';
 import BuyerDashboard from './pages/BuyerDashboard';
 import Farmers from './pages/Farmers';
 import AddFarmer from './pages/AddFarmer';
+import EditFarmer from './pages/EditFarmer'; // <-- ADD THIS IMPORT
 import FarmerProfile from './pages/FarmerProfile';
 import ActivityLog from './pages/ActivityLog';
 import Marketplace from './pages/Marketplace';
@@ -34,42 +35,34 @@ function App() {
     return React.createElement(LoadingSpinner, null);
   }
 
-  // Role-based dashboard component
   const getDashboard = () => {
     if (!currentUser) return React.createElement(Navigate, { to: "/login" });
-    
     switch(userRole) {
-      case 'farmer':
-        return React.createElement(FarmerDashboard, null);
-      case 'cooperative':
-        return React.createElement(CooperativeDashboard, null);
-      case 'buyer':
-        return React.createElement(BuyerDashboard, null);
-      default:
-        return React.createElement(CooperativeDashboard, null);
+      case 'farmer': return React.createElement(FarmerDashboard, null);
+      case 'cooperative': return React.createElement(CooperativeDashboard, null);
+      case 'buyer': return React.createElement(BuyerDashboard, null);
+      default: return React.createElement(CooperativeDashboard, null);
     }
   };
 
-  // Role-based access to farmer management pages
-  const canAccessFarmerManagement = () => {
-    return userRole === 'cooperative';
-  };
+  const canAccessFarmerManagement = () => userRole === 'cooperative';
 
   return React.createElement(Routes, null,
     // Public routes
     React.createElement(Route, { path: "/login", element: !currentUser ? React.createElement(Login, null) : React.createElement(Navigate, { to: "/" }) }),
     React.createElement(Route, { path: "/register", element: !currentUser ? React.createElement(Register, null) : React.createElement(Navigate, { to: "/" }) }),
     
-    // Dashboard (role-based)
+    // Dashboard
     React.createElement(Route, { path: "/", element: getDashboard() }),
     
-    // Farmer management (only cooperatives)
+    // Farmer management
     React.createElement(Route, { path: "/farmers", element: canAccessFarmerManagement() ? React.createElement(Farmers, null) : React.createElement(Navigate, { to: "/" }) }),
     React.createElement(Route, { path: "/farmers/add", element: canAccessFarmerManagement() ? React.createElement(AddFarmer, null) : React.createElement(Navigate, { to: "/" }) }),
     React.createElement(Route, { path: "/farmers/:id", element: currentUser ? React.createElement(FarmerProfile, null) : React.createElement(Navigate, { to: "/login" }) }),
+    React.createElement(Route, { path: "/farmers/:id/edit", element: currentUser ? React.createElement(EditFarmer, null) : React.createElement(Navigate, { to: "/login" }) }), // <-- ADD EDIT ROUTE
     React.createElement(Route, { path: "/farmers/:id/activity", element: currentUser ? React.createElement(ActivityLog, null) : React.createElement(Navigate, { to: "/login" }) }),
     
-    // Marketplace (all authenticated users)
+    // Marketplace
     React.createElement(Route, { path: "/marketplace", element: currentUser ? React.createElement(Marketplace, null) : React.createElement(Navigate, { to: "/login" }) })
   );
 }

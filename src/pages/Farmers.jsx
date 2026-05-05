@@ -8,7 +8,7 @@ import { getCarbonRating } from '../utils/carbonScore';
 import { 
   Plus, MapPin, Phone, Search, Leaf, Filter, 
   Users, Camera, ChevronDown, X, Grid3x3, List,
-  Award, TrendingUp, Package
+  Award, TrendingUp, Package, Download
 } from 'lucide-react';
 import { nigeriaStates, produceList } from '../data/nigeriaData';
 
@@ -121,6 +121,67 @@ const Farmers = () => {
     return count;
   };
 
+  // CSV Export Function
+  const exportToCSV = () => {
+    if (filteredFarmers.length === 0) {
+      toast.error('No farmers to export');
+      return;
+    }
+
+    // Define CSV headers
+    const headers = [
+      'Name',
+      'Phone',
+      'Email',
+      'State',
+      'LGA',
+      'Village/Town',
+      'Farm Size (ha)',
+      'Carbon Score',
+      'Carbon Rating',
+      'Farmer Group',
+      'Main Produce',
+      'Joined Date',
+      'Full Address'
+    ];
+
+    // Map farmers to CSV rows
+    const rows = filteredFarmers.map(farmer => {
+      const carbonRating = getCarbonRating(farmer.totalCarbonScore || 0);
+      return [
+        farmer.name || '',
+        farmer.phone || '',
+        farmer.email || '',
+        farmer.state || '',
+        farmer.lga || '',
+        farmer.village || '',
+        farmer.farmSize || '',
+        farmer.totalCarbonScore || 0,
+        carbonRating.label,
+        farmer.farmerGroup || '',
+        (farmer.mainProduce || []).join('; '),
+        farmer.createdAt ? new Date(farmer.createdAt).toLocaleDateString() : '',
+        farmer.location || ''
+      ];
+    });
+
+    // Combine headers and rows
+    const csvContent = [headers, ...rows].map(row => 
+      row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `farmers_export_${new Date().toISOString().slice(0,19)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   // Calculate stats
   const totalFarmers = filteredFarmers.length;
   const totalCarbonScore = filteredFarmers.reduce((sum, f) => sum + (f.totalCarbonScore || 0), 0);
@@ -139,13 +200,22 @@ const Farmers = () => {
             <h1 className="text-3xl font-bold text-gray-900">Farmers</h1>
             <p className="text-gray-500 mt-1">Manage and track your registered farmers</p>
           </div>
-          <Link
-            to="/farmers/add"
-            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
-          >
-            <Plus size={20} />
-            Add Farmer
-          </Link>
+          <div className="flex gap-2">
+            <button
+              onClick={exportToCSV}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+            >
+              <Download size={20} />
+              Export CSV
+            </button>
+            <Link
+              to="/farmers/add"
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center gap-2"
+            >
+              <Plus size={20} />
+              Add Farmer
+            </Link>
+          </div>
         </div>
 
         {/* Stats Cards */}

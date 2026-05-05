@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getFarmerById, getFarmerActivities } from '../firebase/firebase.services';
+import { getFarmerById, getFarmerActivities, deleteFarmer } from '../firebase/firebase.services';
 import Layout from '../components/Layout/Layout';
 import LoadingSpinner from '../components/Common/LoadingSpinner';
 import { getCarbonRating } from '../utils/carbonScore';
 import { 
   ArrowLeft, Leaf, MapPin, Phone, Mail, Calendar, TrendingUp, 
   Plus, Package, Users, Map, Award, Clock, Camera, 
-  Briefcase, ShoppingBag, ChevronRight, CheckCircle 
+  Briefcase, ShoppingBag, ChevronRight, CheckCircle, Trash2, X, Filter, CalendarDays
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -17,13 +17,25 @@ const FarmerProfile = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [farmer, setFarmer] = useState(null);
-  const [activities, setActivities] = useState([]);
+  const [allActivities, setAllActivities] = useState([]);
+  const [filteredActivities, setFilteredActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showFullPhoto, setShowFullPhoto] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Date filter states
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [showDateFilter, setShowDateFilter] = useState(false);
 
   useEffect(() => {
     loadFarmerData();
   }, [id]);
+
+  useEffect(() => {
+    applyDateFilter();
+  }, [allActivities, startDate, endDate]);
 
   const loadFarmerData = async () => {
     if (currentUser && id) {
@@ -33,7 +45,8 @@ const FarmerProfile = () => {
         
         const activitiesResult = await getFarmerActivities(id);
         if (activitiesResult.success) {
-          setActivities(activitiesResult.activities);
+          setAllActivities(activitiesResult.activities);
+          setFilteredActivities(activitiesResult.activities);
         }
       } else {
         toast.error('Farmer not found');
@@ -43,16 +56,68 @@ const FarmerProfile = () => {
     }
   };
 
+  const applyDateFilter = () => {
+    if (!startDate && !endDate) {
+      setFilteredActivities(allActivities);
+      return;
+    }
+
+    let filtered = [...allActivities];
+    
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(activity => {
+        const activityDate = activity.date?.toDate();
+        return activityDate >= start;
+      });
+    }
+    
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(activity => {
+        const activityDate = activity.date?.toDate();
+        return activityDate <= end;
+      });
+    }
+    
+    setFilteredActivities(filtered);
+  };
+
+  const clearDateFilter = () => {
+    setStartDate('');
+    setEndDate('');
+    setShowDateFilter(false);
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    const result = await deleteFarmer(id);
+    if (result.success) {
+      toast.success('Farmer deleted successfully');
+      navigate('/farmers');
+    } else {
+      toast.error(result.error);
+      setShowDeleteModal(false);
+    }
+    setDeleting(false);
+  };
+
   if (loading) return <LoadingSpinner />;
   if (!farmer) return null;
 
   const carbonRating = getCarbonRating(farmer.totalCarbonScore || 0);
-  const totalTrees = activities.reduce((sum, act) => sum + (act.treesPlanted || 0), 0);
-  const totalActivities = activities.length;
-  const recentActivities = activities.slice(0, 5);
+  const totalTrees = allActivities.reduce((sum, act) => sum + (act.treesPlanted || 0), 0);
+  const totalActivities = allActivities.length;
+  const filteredCount = filteredActivities.length;
   
-  // Calculate total carbon points from activities
-  const totalCarbonFromActivities = activities.reduce((sum, act) => sum + (act.calculatedScore || 0), 0);
+  // Use filtered activities for display
+  const displayActivities = filteredActivities;
+  const recentActivities = displayActivities.slice(0, 5);
+  
+  // Total carbon from filtered activities
+  const totalCarbonFromFiltered = displayActivities.reduce((sum, act) => sum + (act.calculatedScore || 0), 0);
 
   return (
     <Layout>
@@ -136,8 +201,8 @@ const FarmerProfile = () => {
                 <div className="text-sm text-gray-500">Activities Logged</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-600">{totalCarbonFromActivities}</div>
-                <div className="text-sm text-gray-500">Total Points Earned</div>
+                <div className="text-2xl font-bold text-green-600">{totalCarbonFromFiltered}</div>
+                <div className="text-sm text-gray-500">Filtered Points</div>
               </div>
             </div>
           </div>
@@ -225,22 +290,83 @@ const FarmerProfile = () => {
               )}
             </div>
 
-            {/* Activity History */}
+            {/* Activity History with Date Filter */}
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <TrendingUp size={20} />
-                Recent Activity History
-              </h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                  <TrendingUp size={20} />
+                  Activity History
+                  {filteredCount !== allActivities.length && (
+                    <span className="text-sm font-normal text-gray-500">
+                      ({filteredCount} of {allActivities.length} shown)
+                    </span>
+                  )}
+                </h2>
+                <button
+                  onClick={() => setShowDateFilter(!showDateFilter)}
+                  className={`text-sm flex items-center gap-1 px-3 py-1 rounded-lg transition ${
+                    showDateFilter || startDate || endDate
+                      ? 'bg-green-100 text-green-700'
+                      : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  <Filter size={14} />
+                  Filter by date
+                  {(startDate || endDate) && (
+                    <span className="ml-1 w-2 h-2 bg-green-600 rounded-full"></span>
+                  )}
+                </button>
+              </div>
+
+              {/* Date Filter Controls */}
+              {showDateFilter && (
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                      <input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3 flex justify-end">
+                    <button
+                      onClick={clearDateFilter}
+                      className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                    >
+                      <X size={14} /> Clear filters
+                    </button>
+                  </div>
+                </div>
+              )}
               
-              {recentActivities.length === 0 ? (
+              {displayActivities.length === 0 ? (
                 <div className="text-center py-8">
-                  <p className="text-gray-500 mb-4">No activities logged yet</p>
-                  <Link
-                    to={`/farmers/${id}/activity`}
-                    className="inline-block bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-                  >
-                    Log First Activity
-                  </Link>
+                  <p className="text-gray-500 mb-4">
+                    {allActivities.length === 0 
+                      ? 'No activities logged yet' 
+                      : 'No activities in selected date range'}
+                  </p>
+                  {allActivities.length === 0 && (
+                    <Link
+                      to={`/farmers/${id}/activity`}
+                      className="inline-block bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                    >
+                      Log First Activity
+                    </Link>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -282,9 +408,15 @@ const FarmerProfile = () => {
                     </div>
                   ))}
                   
-                  {activities.length > 5 && (
-                    <button className="w-full text-center text-green-600 hover:text-green-700 text-sm font-medium py-2">
-                      View all {activities.length} activities →
+                  {displayActivities.length > 5 && (
+                    <button 
+                      onClick={() => {
+                        // Optionally expand view or navigate to dedicated page
+                        toast.info('Showing 5 most recent. Adjust date range for more.');
+                      }}
+                      className="w-full text-center text-green-600 hover:text-green-700 text-sm font-medium py-2"
+                    >
+                      Showing 5 of {displayActivities.length} activities. Adjust date range to see more.
                     </button>
                   )}
                 </div>
@@ -319,6 +451,13 @@ const FarmerProfile = () => {
                   <Users size={20} />
                   Edit Farmer Details
                 </button>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="w-full bg-red-600 text-white py-3 px-4 rounded-lg hover:bg-red-700 transition flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={20} />
+                  Delete Farmer
+                </button>
               </div>
             </div>
 
@@ -341,7 +480,7 @@ const FarmerProfile = () => {
                     <span className="text-sm">💚 Carbon Hero (500+ points)</span>
                   </div>
                 )}
-                {activities.length >= 10 && (
+                {totalActivities >= 10 && (
                   <div className="flex items-center gap-2 text-green-700">
                     <CheckCircle size={18} />
                     <span className="text-sm">📊 Active Farmer (10+ activities)</span>
@@ -360,7 +499,7 @@ const FarmerProfile = () => {
                   </div>
                 )}
                 
-                {(totalTrees < 100 && farmer.totalCarbonScore < 500 && activities.length < 10) && (
+                {(totalTrees < 100 && farmer.totalCarbonScore < 500 && totalActivities < 10) && (
                   <p className="text-gray-500 italic text-sm">Complete more activities to earn badges!</p>
                 )}
               </div>
@@ -393,6 +532,39 @@ const FarmerProfile = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-semibold text-gray-900">Delete Farmer</h3>
+              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete <strong>{farmer.name}</strong>? This action cannot be undone. 
+              All activities and marketplace listings associated with this farmer will also be removed.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Full Photo Modal */}
       {showFullPhoto && farmer.profilePhotoURL && (
