@@ -18,22 +18,57 @@ import {
   signOut 
 } from 'firebase/auth';
 
-// AUTH SERVICES
+// ==================== AUTH SERVICES ====================
+
 export const registerUser = async (email, password, userData) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
-    await addDoc(collection(db, 'users'), {
+    // Prepare user document based on role
+    let userDoc = {
       uid: user.uid,
       email: email,
-      ...userData,
+      role: userData.role,
       createdAt: Timestamp.now(),
-      role: 'cooperative_staff'
-    });
+    };
+    
+    if (userData.role === 'farmer') {
+      userDoc = {
+        ...userDoc,
+        name: userData.name,
+        phone: userData.phone,
+        location: userData.location,
+        state: userData.state,
+        lga: userData.lga,
+        village: userData.village,
+        farmSize: userData.farmSize || 0,
+        type: 'individual',
+        totalCarbonScore: 0
+      };
+    } else if (userData.role === 'cooperative') {
+      userDoc = {
+        ...userDoc,
+        organizationName: userData.organizationName,
+        type: 'cooperative',
+        farmersManaged: []
+      };
+    } else if (userData.role === 'buyer') {
+      userDoc = {
+        ...userDoc,
+        businessName: userData.businessName,
+        phone: userData.phone,
+        address: userData.address,
+        type: 'buyer',
+        purchaseHistory: []
+      };
+    }
+    
+    await addDoc(collection(db, 'users'), userDoc);
     
     return { success: true, user };
   } catch (error) {
+    console.error('Registration error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -43,6 +78,7 @@ export const loginUser = async (email, password) => {
     const userCredential = await signInWithEmailAndPassword(auth, email, password);
     return { success: true, user: userCredential.user };
   } catch (error) {
+    console.error('Login error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -52,11 +88,28 @@ export const logoutUser = async () => {
     await signOut(auth);
     return { success: true };
   } catch (error) {
+    console.error('Logout error:', error);
     return { success: false, error: error.message };
   }
 };
 
-// FARMER SERVICES
+export const getUserRole = async (uid) => {
+  try {
+    const q = query(collection(db, 'users'), where('uid', '==', uid));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const userDoc = querySnapshot.docs[0];
+      return userDoc.data().role || 'cooperative';
+    }
+    return 'cooperative';
+  } catch (error) {
+    console.error('Error getting user role:', error);
+    return 'cooperative';
+  }
+};
+
+// ==================== FARMER SERVICES ====================
+
 export const addFarmer = async (farmerData, userId) => {
   try {
     const docRef = await addDoc(collection(db, 'farmers'), {
@@ -68,6 +121,7 @@ export const addFarmer = async (farmerData, userId) => {
     });
     return { success: true, id: docRef.id };
   } catch (error) {
+    console.error('Add farmer error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -82,6 +136,7 @@ export const getFarmers = async (userId) => {
     });
     return { success: true, farmers };
   } catch (error) {
+    console.error('Get farmers error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -95,7 +150,23 @@ export const getFarmerById = async (farmerId) => {
     }
     return { success: false, error: 'Farmer not found' };
   } catch (error) {
+    console.error('Get farmer by ID error:', error);
     return { success: false, error: error.message };
+  }
+};
+
+export const getFarmerByUserId = async (userId) => {
+  try {
+    const q = query(collection(db, 'farmers'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const farmerDoc = querySnapshot.docs[0];
+      return { success: true, farmer: { id: farmerDoc.id, ...farmerDoc.data() } };
+    }
+    return { success: true, farmer: null };
+  } catch (error) {
+    console.error('Error getting farmer by user ID:', error);
+    return { success: false, error: error.message, farmer: null };
   }
 };
 
@@ -109,11 +180,13 @@ export const updateFarmerCarbonScore = async (farmerId, newScore) => {
     });
     return { success: true };
   } catch (error) {
+    console.error('Update carbon score error:', error);
     return { success: false, error: error.message };
   }
 };
 
-// ACTIVITY SERVICES
+// ==================== ACTIVITY SERVICES ====================
+
 export const addActivity = async (activityData, farmerId) => {
   try {
     const docRef = await addDoc(collection(db, 'activities'), {
@@ -130,6 +203,7 @@ export const addActivity = async (activityData, farmerId) => {
     
     return { success: true, id: docRef.id };
   } catch (error) {
+    console.error('Add activity error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -148,11 +222,13 @@ export const getFarmerActivities = async (farmerId) => {
     });
     return { success: true, activities };
   } catch (error) {
+    console.error('Get farmer activities error:', error);
     return { success: false, error: error.message };
   }
 };
 
-// MARKETPLACE SERVICES
+// ==================== MARKETPLACE SERVICES ====================
+
 export const addListing = async (listingData, userId, farmerId) => {
   try {
     const docRef = await addDoc(collection(db, 'marketplace_listings'), {
@@ -164,6 +240,7 @@ export const addListing = async (listingData, userId, farmerId) => {
     });
     return { success: true, id: docRef.id };
   } catch (error) {
+    console.error('Add listing error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -188,11 +265,13 @@ export const getListings = async () => {
     }
     return { success: true, listings };
   } catch (error) {
+    console.error('Get listings error:', error);
     return { success: false, error: error.message };
   }
 };
 
-// DASHBOARD STATS
+// ==================== DASHBOARD STATS ====================
+
 export const getDashboardStats = async (userId) => {
   try {
     const farmersResult = await getFarmers(userId);
@@ -224,6 +303,7 @@ export const getDashboardStats = async (userId) => {
       }
     };
   } catch (error) {
+    console.error('Get dashboard stats error:', error);
     return { success: false, error: error.message };
   }
 };
