@@ -6,6 +6,7 @@ import {
   getDoc, 
   doc, 
   updateDoc, 
+  deleteDoc,
   query, 
   where, 
   orderBy, 
@@ -184,7 +185,6 @@ export const updateFarmerCarbonScore = async (farmerId, newScore) => {
   }
 };
 
-// NEW: Update farmer details
 export const updateFarmer = async (farmerId, updatedData) => {
   try {
     const farmerRef = doc(db, 'farmers', farmerId);
@@ -192,6 +192,31 @@ export const updateFarmer = async (farmerId, updatedData) => {
     return { success: true };
   } catch (error) {
     console.error('Update farmer error:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+export const deleteFarmer = async (farmerId) => {
+  try {
+    // Delete farmer document
+    const farmerRef = doc(db, 'farmers', farmerId);
+    await deleteDoc(farmerRef);
+    
+    // Delete all activities for this farmer
+    const activitiesQuery = query(collection(db, 'activities'), where('farmerId', '==', farmerId));
+    const activitiesSnapshot = await getDocs(activitiesQuery);
+    const activityDeletions = activitiesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(activityDeletions);
+    
+    // Delete all marketplace listings for this farmer
+    const listingsQuery = query(collection(db, 'marketplace_listings'), where('farmerId', '==', farmerId));
+    const listingsSnapshot = await getDocs(listingsQuery);
+    const listingDeletions = listingsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+    await Promise.all(listingDeletions);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Delete farmer error:', error);
     return { success: false, error: error.message };
   }
 };
